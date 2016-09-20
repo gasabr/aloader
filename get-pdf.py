@@ -143,8 +143,6 @@ def main():
 		try:
 			path = create_path( filename, base_dir )
 		except ValueError:
-			# obj.store(data[0].replace(' ',','),'+FLAGS','\Seen')
-			# server.store( msg_id, '-FLAGS', '\Seen')
 			log['Incorrect Mask'].append( path )
 			continue
 
