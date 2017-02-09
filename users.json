@@ -1,0 +1,10 @@
+{
+	"accounts": [
+		{	
+			"name" 		:	"GMail",
+			"server"	:	"imap.gmail.com",
+			"login"		:	"abroskingleb@gmail.com",
+			"password" 	:	"newgmail97"
+		}
+	]	
+}

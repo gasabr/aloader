@@ -1,0 +1,10 @@
+{
+	"accounts": [
+		{	
+			"name" 		:	"put name here",
+			"server"	:	"imap.gmail.com", // for gmail
+			"login"		:	"your login",
+			"password" 	:	"and password"
+		}
+	]	
+}
