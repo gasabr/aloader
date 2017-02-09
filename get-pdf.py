@@ -1,14 +1,34 @@
+#!/usr/bin/env python3
+''' Getcha ya own.
+
+    Script to collect mail attachments matching regex in one folder.
+    Usage:
+        1. Fill config.py with your data.
+        2. Run script
+'''
 from imaplib import IMAP4, IMAP4_SSL
 import email
+import re
 import os       # to write path
 import base64   # to decode messages
 import sys      # for progress bar
 import json     # to store user info
 
+import config
+
+
+def valid(filename):
+    pattern = re.compile(r'\w+_\d+_\d+_\w+_(asa|prog)_\d+_\d+.(cpp|pdf|c|tar|zip)')
+
+    if pattern.match(filename.lower()):
+        return True
+    else:
+        return False
+
 
 # Print iterations progress
 def printProgress (iteration, total, prefix = '', suffix = '', decimals = 2, barLength = 100):
-    """ Call in a loop to create terminal progress bar
+    ''' Call in a loop to create terminal progress bar
 
         :Args:
             iteration   - Required  : current iteration (Int)
@@ -17,7 +37,7 @@ def printProgress (iteration, total, prefix = '', suffix = '', decimals = 2, bar
             suffix      - Optional  : suffix string (Str)
             decimals    - Optional  : number of decimals in percent complete (Int)
             barLength   - Optional  : character length of bar (Int)
-    """
+    '''
 
     filledLength    = int(round(barLength * iteration / float(total)))
     percents        = round(100.00 * (iteration / float(total)), decimals)
@@ -41,11 +61,8 @@ def setup_connection(user):
     '''
     server = IMAP4_SSL(user['server'])
     server.login(user['login'], user['password'])
-    a = server.list()
-
-    print(a)
-
-    server.select('inbox')
+    # TODO: check what this line does
+    server.select('inbox') 
 
     return server
 
@@ -62,14 +79,17 @@ def find_pdf(server, ids):
     i = 0
     msgs_with_pdf = []
     printProgress(i, len(ids), suffix='emails checked', barLength=50)
+
     for msg_id in ids:
         result, data = server.fetch(msg_id, '(RFC822)') # get message body
         raw_email = data[0][1] # what is this?
         temp_msg = email.message_from_bytes(raw_email)
 
         for part in temp_msg.walk():
-            if part.get_content_type() == 'application/pdf':
-                msgs_with_pdf.append(part)
+            if part.get_content_type() in config.allowed_types:
+                msgs_with_pdf.append({'sender': temp_msg['From'].split('<')[-1][:-1],
+                                      'part'  : part,
+                                     })
 
         i += 1
         printProgress(i, len(ids), suffix='emails checked', barLength=50)
@@ -77,42 +97,19 @@ def find_pdf(server, ids):
     return msgs_with_pdf
 
 
-def create_file(path, pdf_bytes):
-    """ Creates pdf file in given derectory.
+def create_file(path, bytes_):
+    ''' Creates pdf file in given derectory.
 
         :Args:
             path        - Required  : comlete path to folder (Str)
             pdf_bytes   - Required  : pdf file in bytes (bytes)
-    """
-    
+    '''
+
     file = open(path, 'w+b') # write as a binary file
-    file.write(df_bytes)
+    file.write(bytes_)
     file.close()
     print('file %s created succesfully' % path)
     return 0
-
-
-def create_path(fullname, base_dir):
-    ''' Gets file name from email message.
-
-        checks it for matching mask
-        :Args:
-            fullname (str)  - Required  : complete filename from email 
-            base_dir (str)  - Required  : directory where are all files 
-
-        :Returns:
-            path (str): path to save file
-    '''
-
-    p = fullname.split('_')
-    if len(p) == 1: # if there is no _ in filename
-        raise ValueError
-
-    path = base_dir
-    for i in range(len(p)):
-        path = os.path.join(path, p[i])
-
-    return path
 
 
 def main():
@@ -120,17 +117,7 @@ def main():
     with open('users.json') as users:
         users_data = json.load(users)
 
-    # show available accounts
-    print('Choose accout to connect or create new:')
-    i = 0
-    for key, value in users_data.items(): 
-        for acc in value:
-            i += 1
-            print('\t', i, acc['name'])
-    print('\t', i+1, 'Create acc')
-
-    user_index = 0
-    user = users_data['accounts'][user_index]
+    user = users_data['accounts'][0]
 
     server = setup_connection(user)
 
@@ -138,37 +125,33 @@ def main():
     ids = data[0].split()
 
     if len(ids) == 0:
-        print( 'No new messages')
+        print('No new messages')
         return 0
 
+    # TODO Find messages with files
     msgs_with_pdf = find_pdf(server, ids)
 
     if len(msgs_with_pdf) == 0:
-        print( 'no new files.')
+        print('no new files to download.')
         return 0
-
-    base_dir = '' # read and store in file later
 
     log = {'Incorrect Mask' : [], 
            'No file': [], 
            'Created succesfully': []
           }
 
-    for part in msgs_with_pdf:
-        filename = part.get_filename()
-        path = ''
-        try:
-            path = create_path(filename, base_dir)
-        except ValueError:
-            # obj.store(data[0].replace(' ',','),'+FLAGS','\Seen')
-            # server.store( msg_id, '-FLAGS', '\Seen')
-            log['Incorrect Mask'].append(path)
+    for msg in msgs_with_pdf:
+        filename = msg['part'].get_filename()
+
+        if not valid(filename):
             continue
 
-        pdf_b = part.get_payload(decode=True) # pdf in bytes
+        path = os.path.join(config.BASE_DIR, filename)
+
+        bytes_ = msg['part'].get_payload(decode=True) # file in bytes
         
         try:
-            create_file(path, pdf_b)
+            create_file(path, bytes_)
         except FileNotFoundError as e:
             log['No file'].append(path)
         else:

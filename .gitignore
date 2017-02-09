@@ -1,2 +1,5 @@
 1/
+config.py
+__pycache__/
+/files/*
 
