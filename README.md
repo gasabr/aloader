@@ -15,4 +15,3 @@ PASSWORD = 'your_password'
 DOWNLOAD_FOLDER = 'relative path from current directory'
 REPORT_FILE = 'default: report.json'
 ```
-
