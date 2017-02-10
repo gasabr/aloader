@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-''' Getcha ya own.
+''' aloader.
 
     Script to collect mail attachments matching regex in one folder.
     Usage:
@@ -20,16 +20,11 @@ import config
 def valid(filename):
     splitted = re.split(r'[\W+|_]', filename)
 
-    print(splitted)
-
     if len(splitted) != 8:
         return False
 
-    print('subject=', splitted[4])
-    print('extension=', splitted[-1])
-
     pattern = re.compile(r'\w+_\d+_\d+_\w+_\w+_\d+_\d+.\w+')
- 
+
     if pattern.match(filename.lower()) and \
             splitted[4] in config.ALLOWED_SUBJECTS and \
             splitted[-1] in config.ALLOWED_EXTENSIONS:
@@ -73,8 +68,7 @@ def setup_connection():
     '''
     server = IMAP4_SSL(config.SERVER)
     server.login(config.LOGIN, config.PASSWORD)
-    # TODO: check what this line does
-    server.select('inbox') 
+    server.select('inbox')
 
     return server
 
@@ -96,8 +90,6 @@ def find_files(server, ids):
         result, data = server.fetch(msg_id, '(RFC822)') # get message body
         raw_email = data[0][1] # what is this?
         temp_msg = email.message_from_bytes(raw_email)
-
-        print(temp_msg['From'])
 
         for part in temp_msg.walk():
             if part.get_content_type() in config.ALLOWED_MIME_TYPES:
@@ -126,7 +118,7 @@ def create_file(path, bytes_):
     file = open(path, 'w+b') # write as a binary file
     file.write(bytes_)
     file.close()
-    print('file %s created succesfully' % path)
+    print('file %s was created succesfully' % path)
     return 0
 
 
@@ -164,8 +156,8 @@ def main():
         print('no new files to download.')
         return 0
 
-    log = {'Incorrect Mask' : [], 
-           'No file': [], 
+    log = {'Incorrect Mask' : [],
+           'No file': [],
            'Created succesfully': []
           }
     created_files = []
@@ -179,7 +171,7 @@ def main():
         path = os.path.join(config.BASE_DIR, filename)
 
         bytes_ = msg['part'].get_payload(decode=True) # file in bytes
-        
+
         try:
             create_file(path, bytes_)
         except FileNotFoundError as e:
