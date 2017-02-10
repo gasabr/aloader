@@ -6,7 +6,7 @@
         1. Fill config.py with your data.
         2. Run script
 '''
-from imaplib import IMAP4, IMAP4_SSL
+from imaplib import IMAP4_SSL
 import email
 import re
 import os       # to write path
@@ -18,9 +18,21 @@ import config
 
 
 def valid(filename):
-    pattern = re.compile(r'\w+_\d+_\d+_\w+_(asa|prog)_\d+_\d+.(cpp|pdf|c|tar|zip)')
+    splitted = re.split(r'[\W+|_]', filename)
 
-    if pattern.match(filename.lower()):
+    print(splitted)
+
+    if len(splitted) != 8:
+        return False
+
+    print('subject=', splitted[4])
+    print('extension=', splitted[-1])
+
+    pattern = re.compile(r'\w+_\d+_\d+_\w+_\w+_\d+_\d+.\w+')
+ 
+    if pattern.match(filename.lower()) and \
+            splitted[4] in config.ALLOWED_SUBJECTS and \
+            splitted[-1] in config.ALLOWED_EXTENSIONS:
         return True
     else:
         return False
@@ -49,7 +61,7 @@ def printProgress (iteration, total, prefix = '', suffix = '', decimals = 2, bar
         sys.stdout.flush()
 
 
-def setup_connection(user):
+def setup_connection():
     ''' Setting up connection with IMAP server.
 
         Takes dict with server, username, password
@@ -59,15 +71,15 @@ def setup_connection(user):
         :Returns:
             server (imaplib.IMAP4_SS): IMAP server
     '''
-    server = IMAP4_SSL(user['server'])
-    server.login(user['login'], user['password'])
+    server = IMAP4_SSL(config.SERVER)
+    server.login(config.LOGIN, config.PASSWORD)
     # TODO: check what this line does
     server.select('inbox') 
 
     return server
 
 
-def find_pdf(server, ids):
+def find_files(server, ids):
     ''' Finds messages containing pdf files in inbox.
 
         takes array of ids to check
@@ -85,11 +97,17 @@ def find_pdf(server, ids):
         raw_email = data[0][1] # what is this?
         temp_msg = email.message_from_bytes(raw_email)
 
+        print(temp_msg['From'])
+
         for part in temp_msg.walk():
-            if part.get_content_type() in config.allowed_types:
-                msgs_with_pdf.append({'sender': temp_msg['From'].split('<')[-1][:-1],
-                                      'part'  : part,
-                                     })
+            if part.get_content_type() in config.ALLOWED_MIME_TYPES:
+                parsed_sender = re.split(r'[<|>]', temp_msg['From'])
+                # FIXME: write more reliable email extractors
+                msgs_with_pdf.append({
+                        'sender': parsed_sender[-2],
+                        'sender_name': parsed_sender[0].encode('UTF-8').decode('UTF-8'),
+                        'part'  : part,
+                    })
 
         i += 1
         printProgress(i, len(ids), suffix='emails checked', barLength=50)
@@ -112,14 +130,25 @@ def create_file(path, bytes_):
     return 0
 
 
+def create_report(reports):
+    ''' Logs all saved papers.
+
+        Dumps information about successfully performed emails to
+        the config.REPORT_FILE
+    '''
+    try:
+        filename = config.REPORT_FILE
+    except Exception as e:
+        print('Please, define REPORT_FILE in `config.py`.')
+        print('Report will be written in `/report.json`.')
+        filename = 'report.json'
+
+    with open(filename, 'w+') as fp:
+        json.dump(reports, fp, ensure_ascii=False)
+
+
 def main():
-    # load users info from file
-    with open('users.json') as users:
-        users_data = json.load(users)
-
-    user = users_data['accounts'][0]
-
-    server = setup_connection(user)
+    server = setup_connection()
 
     result, data = server.search(None, 'UNSEEN')
     ids = data[0].split()
@@ -129,7 +158,7 @@ def main():
         return 0
 
     # TODO Find messages with files
-    msgs_with_pdf = find_pdf(server, ids)
+    msgs_with_pdf = find_files(server, ids)
 
     if len(msgs_with_pdf) == 0:
         print('no new files to download.')
@@ -139,6 +168,7 @@ def main():
            'No file': [], 
            'Created succesfully': []
           }
+    created_files = []
 
     for msg in msgs_with_pdf:
         filename = msg['part'].get_filename()
@@ -156,10 +186,16 @@ def main():
             log['No file'].append(path)
         else:
             log['Created succesfully'].append(path)
+            created_files.append({'sender'     : msg['sender'],
+                                  'sender_name': msg['sender_name'],
+                                  'filename'   : filename,
+                                })
 
     # print log
     for key, value in log.items():
         print(key, ':', len(value))
+
+    create_report(created_files)
 
 
 if __name__ == '__main__':

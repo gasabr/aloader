@@ -1,15 +1,18 @@
-get-pdf
+# aloader
 
-Small python programm, which will help you organize pdf files from email in folders on computer.
+Script downloads all attachments from your email (unseen messages) through IMAP4.
 
-To login you should have file 'users.json' in current directory with following format:
-{
-	"accounts": [
-		{	
-			"name" 		:	"name of account",
-			"server"	:	"imap.gmail.com", # for example
-			"login"		:	"email login",
-			"password" 	:	"email password"
-		}
-	]
-}
+Usage:
+
+1. `git clone http://github.com/gasabr/aloader.git`
+2. create config.py with the following content:
+
+```python
+SERVER   = 'imap.google.com' # example for gmail
+LOGIN    = 'your_email'
+PASSWORD = 'your_password'
+
+DOWNLOAD_FOLDER = 'relative path from current directory'
+REPORT_FILE = 'default: report.json'
+```
+
